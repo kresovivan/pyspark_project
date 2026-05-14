@@ -1,0 +1,156 @@
+"""
+Простой рекомендательный движок на основе ALS
+"""
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, split, when, broadcast, trim
+from pyspark.sql.types import IntegerType, StringType
+from pyspark.ml.recommendation import ALS
+
+# ============================================
+# 1. СОЗДАНИЕ SPARK SESSION
+# ============================================
+spark = SparkSession.builder \
+    .master("local[*]") \
+    .appName("Simple Recommendation Engine") \
+    .config("spark.driver.memory", "16g") \
+    .config("spark.executor.memory", "16g") \
+    .getOrCreate()
+
+# ============================================
+# 2. ЧТЕНИЕ ДАННЫХ
+# ============================================
+print("Чтение данных...")
+
+# Чтение raw данных
+raw_user_artist = spark.read.text("data/user_artist_data.txt")
+raw_artist_alias = spark.read.text("data/artist_alias.txt")
+raw_artist_data = spark.read.text("data/artist_data.txt")
+
+# ============================================
+# 3. ПАРСИНГ user_artist
+# ============================================
+print("Парсинг user_artist...")
+user_artist = raw_user_artist.select(
+    split(col("value"), " ").getItem(0).cast(IntegerType()).alias("user"),
+    split(col("value"), " ").getItem(1).cast(IntegerType()).alias("artist"),
+    split(col("value"), " ").getItem(2).cast(IntegerType()).alias("count")
+)
+
+# Фильтрация null
+user_artist = user_artist.filter(col("user").isNotNull()) \
+                         .filter(col("artist").isNotNull()) \
+                         .filter(col("count").isNotNull())
+
+print(f"user_artist: {user_artist.count()} записей")
+
+# ============================================
+# 4. ПАРСИНГ artist_alias (с пробелами)
+# ============================================
+print("Парсинг artist_alias...")
+from pyspark.sql.functions import regexp_extract
+
+artist_alias = raw_artist_alias.select(
+    regexp_extract(col("value"), r'^(\d+)', 1).alias("artist_raw"),
+    regexp_extract(col("value"), r'\s+(\d+)$', 1).alias("alias_raw")
+)
+
+
+# Преобразуем в числа
+artist_alias = artist_alias \
+    .filter(col("artist_raw") != "") \
+    .filter(col("alias_raw") != "") \
+    .withColumn("artist", col("artist_raw").cast(IntegerType())) \
+    .withColumn("alias", col("alias_raw").cast(IntegerType())) \
+    .drop("artist_raw", "alias_raw") \
+    .filter(col("artist").isNotNull()) \
+    .filter(col("alias").isNotNull())
+
+print(f"artist_alias: {artist_alias.count()} записей")
+artist_alias.show(5)
+
+
+# ============================================
+# 4.5. ПАРСИНГ artist_data (id и имя исполнителя)
+# ============================================
+print("Парсинг artist_data...")
+
+# Шаг 1: Извлекаем строковое значение id
+artist_by_id = raw_artist_data.withColumn("id_str",
+    split(col("value"), '\s+', 2).getItem(0)
+)
+
+# Шаг 2: Фильтруем строки, где id_str состоит только из цифр
+artist_by_id = artist_by_id.filter(col("id_str").rlike("^[0-9]+$"))
+
+# Шаг 3: Преобразуем в Integer
+artist_by_id = artist_by_id.withColumn("id",
+    col("id_str").cast(IntegerType())
+)
+
+# Шаг 4: Добавляем колонку 'name'
+artist_by_id = artist_by_id.withColumn('name',
+    split(col("value"), "\s+", 2).getItem(1).cast(StringType())
+).drop("value", "id_str")
+
+# Шаг 5: Удаляем строки с null (на всякий случай)
+artist_by_id = artist_by_id.filter(col("id").isNotNull())
+
+print(f"artist_by_id: {artist_by_id.count()} записей")
+artist_by_id.show(20)
+
+
+# ============================================
+# 5. ПРОСТО ИСПОЛЬЗУЕМ ОРИГИНАЛЬНЫЕ ДАННЫЕ (БЕЗ ЗАМЕНЫ ALIAS)
+# ============================================
+print("Используем оригинальные данные без замены alias...")
+train_data = user_artist
+
+print(f"train_data: {train_data.count()} записей")
+train_data.show(10)
+
+
+# ============================================
+# 6. ОБУЧЕНИЕ МОДЕЛИ
+# ============================================
+print("Обучение модели ALS...")
+
+train_data_numeric = train_data \
+    .withColumn("user", col("user").cast(IntegerType())) \
+    .withColumn("artist", col("artist").cast(IntegerType())) \
+    .withColumn("count", col("count").cast(IntegerType())) \
+    .na.drop()
+
+print(f"train_data_numeric: {train_data_numeric.count()} записей")
+
+model = ALS(
+    rank=10,
+    seed=0,
+    maxIter=5,
+    regParam=0.1,
+    implicitPrefs=True,
+    alpha=1.0,
+    userCol="user",
+    itemCol="artist",
+    ratingCol="count"
+).fit(train_data_numeric)
+
+print("✅ Модель успешно обучена!")
+
+
+# ============================================
+# 8. Выборочная проверка рекомендаций
+# ============================================
+user_id = 2093760
+
+existing_artist_ids = train_data.filter(col("user") == user_id) \
+    .select("artist").collect()
+
+existing_artist_ids = [row.artist for row in existing_artist_ids]
+
+artist_by_id.filter(col("id").isin(existing_artist_ids)).show()
+
+
+# ============================================
+# 9. Дадим пльзователю рекомендацию
+# ============================================
+user_subset 

@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+*.log
+data/*.txt
+data/*.csv
+C:/temp/spark/
+result.parquet/
+sorted_result/
