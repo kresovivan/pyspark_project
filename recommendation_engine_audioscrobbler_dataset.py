@@ -122,6 +122,21 @@ train_data_numeric = train_data \
 
 print(f"train_data_numeric: {train_data_numeric.count()} записей")
 
+"""
+model = ALS(
+    rank=50,           # ещё больше факторов
+    maxIter=15,        # больше итераций
+    regParam=0.01,     # минимальная регуляризация
+    implicitPrefs=True,
+    alpha=2.0,         # ↑ увеличить доверие к данным
+    userCol="user",
+    itemCol="artist",
+    ratingCol="count",
+    coldStartStrategy="drop"
+).fit(train_data_numeric)
+"""
+
+
 model = ALS(
     rank=10,
     seed=0,
@@ -153,4 +168,33 @@ artist_by_id.filter(col("id").isin(existing_artist_ids)).show()
 # ============================================
 # 9. Дадим пльзователю рекомендацию
 # ============================================
-user_subset = 
+user_subset = train_data.select("user").where(col("user") == user_id).distinct()
+
+top_predictions = model.recommendForUserSubset(user_subset,5)
+
+top_predictions.show(10, truncate=False)
+
+
+top_predictions_pandas = top_predictions.toPandas()
+print(top_predictions_pandas)
+
+recommended_artist_ids = [i[0] for i in top_predictions_pandas.recommendations[0]]
+"""
+Эта конструкция проходится по этому списку и из каждого элемента вытаскивает первое число (artist_id):
+# Шаг 1: i = (829, 0.15556057) → берём i[0] = 829
+# Шаг 2: i = (1811, 0.15442578) → берём i[0] = 1811
+# Шаг 3: i = (1001819, 0.15356433) → берём i[0] = 1001819
+# Шаг 4: i = (1037970, 0.14996031) → берём i[0] = 1037970
+# Шаг 5: i = (1007614, 0.14939211) → берём i[0] = 1007614
+Результат: новый список только из ID:
+
+Результат: новый список только из ID:
+
+[829, 1811, 1001819, 1037970, 1007614]
+"""
+
+artist_by_id.filter(col("id").isin(recommended_artist_ids)).show()
+
+"""
+Оценка качества рекомендаций
+"""
