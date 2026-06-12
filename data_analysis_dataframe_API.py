@@ -33,27 +33,27 @@
 # ============================================
 # Суть: Подключение всех необходимых инструментов для работы с Big Data,
 #       файловой системой, преобразованиями данных и визуализацией
-from glob import glob                    # Поиск файлов по шаблону (block_*.csv)
-from pyspark.sql import SparkSession     # SparkSession — вход в Spark
-from pyspark.sql.types import *          # Типы данных (IntegerType, DoubleType и т.д.)
-import shutil                            # Работа с файлами (удаление папок)
-import os                                # Файловая система (проверка существования папок)
-from pyspark.sql.functions import col    # Работа с колонками (col("имя"))
+from glob import glob  # Поиск файлов по шаблону (block_*.csv)
+from pyspark.sql import SparkSession  # SparkSession — вход в Spark
+from pyspark.sql.types import *  # Типы данных (IntegerType, DoubleType и т.д.)
+import shutil  # Работа с файлами (удаление папок)
+import os  # Файловая система (проверка существования папок)
+from pyspark.sql.functions import col  # Работа с колонками (col("имя"))
 from pyspark.sql.functions import avg, stddev  # Агрегатные функции
-import pandas as pd                      # Для удобной обработки транспонированных таблиц
-import tempfile                          # Для создания временных файлов
-import uuid                              # Генерация уникальных идентификаторов
-from pyspark.sql.functions import expr   # Для выполнения строковых выражений
+import pandas as pd  # Для удобной обработки транспонированных таблиц
+import tempfile  # Для создания временных файлов
+import uuid  # Генерация уникальных идентификаторов
+from pyspark.sql.functions import expr  # Для выполнения строковых выражений
 
 # ============================================
 # БЛОК 2: ОЧИСТКА КЭША ПЕРЕД ЗАПУСКОМ
 # ============================================
 # Суть: Обеспечение "чистого старта" — удаление старых временных файлов,
 #       которые могут занимать место и вызывать конфликты
-cache_dir = "C:/temp/spark"              # Папка для временных файлов Spark
-if os.path.exists(cache_dir):            # Если папка существует...
-    shutil.rmtree(cache_dir)             # ...удаляем её со всем содержимым
-    os.makedirs(cache_dir)               # ...и создаём заново пустую
+cache_dir = "C:/temp/spark"  # Папка для временных файлов Spark
+if os.path.exists(cache_dir):  # Если папка существует...
+    shutil.rmtree(cache_dir)  # ...удаляем её со всем содержимым
+    os.makedirs(cache_dir)  # ...и создаём заново пустую
 # Зачем: предотвращает накопление старых временных файлов и экономит место на диске
 
 # ============================================
@@ -61,12 +61,13 @@ if os.path.exists(cache_dir):            # Если папка существу�
 # ============================================
 # Суть: Инициализация Spark-окружения с выделением ресурсов (память, ядра)
 #       для параллельной обработки больших данных
-spark = SparkSession.builder \
-    .master("local[*]") \
-    .config("spark.driver.memory", "16g") \
-    .config("spark.executor.memory", "16g") \
-    .config("spark.local.dir", "C:/temp/spark") \
-    .getOrCreate()                       
+spark = (
+    SparkSession.builder.master("local[*]")
+    .config("spark.driver.memory", "16g")
+    .config("spark.executor.memory", "16g")
+    .config("spark.local.dir", "C:/temp/spark")
+    .getOrCreate()
+)
 
 
 # Создаём или получаем существующую сессию
@@ -77,20 +78,36 @@ spark = SparkSession.builder \
 # ============================================
 # Суть: Явное описание структуры CSV-файлов — типы колонок и допустимость NULL.
 #       Это ускоряет загрузку и защищает от ошибок неявного вывода типов.
-schema = StructType([                    # Схема — описывает структуру таблицы
-    StructField("id_1", IntegerType(), False),  # Первый идентификатор, целое, НЕ может быть NULL
-    StructField("id_2", IntegerType(), False),  # Второй идентификатор, целое, НЕ может быть NULL
-    StructField("cmp_fname_c1", DoubleType(), True),   # Сравнение имени (часть 1), дробное, может быть NULL
-    StructField("cmp_fname_c2", DoubleType(), True),   # Сравнение имени (часть 2), дробное
-    StructField("cmp_lname_c1", DoubleType(), True),   # Сравнение фамилии (часть 1), дробное
-    StructField("cmp_lname_c2", DoubleType(), True),   # Сравнение фамилии (часть 2), дробное
-    StructField("cmp_sex", IntegerType(), True),       # Сравнение пола, целое
-    StructField("cmp_bd", IntegerType(), True),        # Сравнение дня рождения
-    StructField("cmp_bm", IntegerType(), True),        # Сравнение месяца рождения
-    StructField("cmp_by", IntegerType(), True),        # Сравнение года рождения
-    StructField("cmp_plz", IntegerType(), True),       # Сравнение почтового индекса
-    StructField("is_match", BooleanType(), True)       # Результат: совпадают ли записи? true/false
-])
+schema = StructType(
+    [  # Схема — описывает структуру таблицы
+        StructField(
+            "id_1", IntegerType(), False
+        ),  # Первый идентификатор, целое, НЕ может быть NULL
+        StructField(
+            "id_2", IntegerType(), False
+        ),  # Второй идентификатор, целое, НЕ может быть NULL
+        StructField(
+            "cmp_fname_c1", DoubleType(), True
+        ),  # Сравнение имени (часть 1), дробное, может быть NULL
+        StructField(
+            "cmp_fname_c2", DoubleType(), True
+        ),  # Сравнение имени (часть 2), дробное
+        StructField(
+            "cmp_lname_c1", DoubleType(), True
+        ),  # Сравнение фамилии (часть 1), дробное
+        StructField(
+            "cmp_lname_c2", DoubleType(), True
+        ),  # Сравнение фамилии (часть 2), дробное
+        StructField("cmp_sex", IntegerType(), True),  # Сравнение пола, целое
+        StructField("cmp_bd", IntegerType(), True),  # Сравнение дня рождения
+        StructField("cmp_bm", IntegerType(), True),  # Сравнение месяца рождения
+        StructField("cmp_by", IntegerType(), True),  # Сравнение года рождения
+        StructField("cmp_plz", IntegerType(), True),  # Сравнение почтового индекса
+        StructField(
+            "is_match", BooleanType(), True
+        ),  # Результат: совпадают ли записи? true/false
+    ]
+)
 # Зачем: явное указание типов ускоряет загрузку и экономит память
 
 # ============================================
@@ -105,11 +122,12 @@ print(f"Найдено файлов: {len(files)}")
 # БЛОК 6: ЧТЕНИЕ ДАННЫХ
 # ============================================
 # Суть: Загрузка всех найденных файлов в единый Spark DataFrame с применением схемы
-parsed = spark.read \
-    .option("header", "true") \
-    .option("nullValue", "?") \
-    .schema(schema) \
-    .csv(files)                          
+parsed = (
+    spark.read.option("header", "true")
+    .option("nullValue", "?")
+    .schema(schema)
+    .csv(files)
+)
 # Зачем: загружает ~5.7 млн строк из 10 файлов в DataFrame
 
 # ============================================
@@ -117,8 +135,8 @@ parsed = spark.read \
 # ============================================
 # Суть: Первичная разведка данных — проверка структуры, просмотр образцов,
 #       подсчёт общего объёма для верификации загрузки
-parsed.printSchema()                     # Выводит структуру таблицы (типы колонок)
-parsed.show(20)                          # Показывает первые 20 строк данных
+parsed.printSchema()  # Выводит структуру таблицы (типы колонок)
+parsed.show(20)  # Показывает первые 20 строк данных
 print(f"Всего строк: {parsed.count()}")  # Подсчитывает и выводит общее количество строк
 # Зачем: даёт понять, как выглядят данные и сколько их
 
@@ -127,7 +145,7 @@ print(f"Всего строк: {parsed.count()}")  # Подсчитывает и
 # ============================================
 # Суть: Сохранение DataFrame в оперативной памяти и на диске для ускорения
 #       последующих многократных операций (фильтрация, агрегация, статистика)
-parsed.cache()                           # Сохраняет DataFrame в память и на диск
+parsed.cache()  # Сохраняет DataFrame в память и на диск
 # Зачем: при повторных операциях данные будут читаться из кэша (быстрее)
 
 # ============================================
@@ -148,7 +166,9 @@ parsed.agg(avg("cmp_sex"), stddev("cmp_sex")).show()
 # ============================================
 # Суть: Альтернативный способ агрегации через SQL — демонстрация гибкости Spark,
 #       позволяющая использовать знакомый синтаксис SQL для анализа
-parsed.createOrReplaceTempView("linkage")  # Регистрируем DataFrame как временную таблицу
+parsed.createOrReplaceTempView(
+    "linkage"
+)  # Регистрируем DataFrame как временную таблицу
 
 sql_group = spark.sql("""
     SELECT 
@@ -166,7 +186,7 @@ sql_group.show()  # Результат идентичен блоку 9, но ч�
 # ============================================
 # Суть: Вычисление основных статистических характеристик (count, mean, stddev, min, max)
 #       для всех числовых колонок — первичный анализ распределений
-summary = parsed.describe()              # Статистика для всех колонок
+summary = parsed.describe()  # Статистика для всех колонок
 summary.select("summary", "cmp_fname_c1", "cmp_fname_c2").show()
 # Зачем: показывает 5 основных статистик для выбранных колонок (имя)
 
@@ -175,11 +195,11 @@ summary.select("summary", "cmp_fname_c1", "cmp_fname_c2").show()
 # ============================================
 # Суть: Разделение данных на два класса и анализ статистик отдельно.
 #       Ключевой этап для понимания, какие признаки лучше разделяют классы.
-matches = parsed.where("is_match = true")        # Фильтр: только совпавшие записи
-match_summary = matches.describe()               # Статистика по истинным совпадениям
+matches = parsed.where("is_match = true")  # Фильтр: только совпавшие записи
+match_summary = matches.describe()  # Статистика по истинным совпадениям
 
-misses = parsed.where("is_match = false")        # Фильтр: только несовпавшие записи
-miss_summary = misses.describe()                 # Статистика по ложным парам
+misses = parsed.where("is_match = false")  # Фильтр: только несовпавшие записи
+miss_summary = misses.describe()  # Статистика по ложным парам
 # Зачем: позволяет сравнить характеристики совпавших и несовпавших записей
 # Например, среднее cmp_lname_c1 для совпавших ~0.9, для несовпавших ~0.1
 
@@ -188,14 +208,14 @@ miss_summary = misses.describe()                 # Статистика по л�
 # ============================================
 # Суть: Транспонирование статистической таблицы (метрики в колонки, поля в строки)
 #       для более удобного визуального сравнения. Pandas здесь удобнее Spark.
-summary_p = summary.toPandas()           # Преобразуем Spark DataFrame в Pandas
+summary_p = summary.toPandas()  # Преобразуем Spark DataFrame в Pandas
 
-summary_p = summary_p.set_index('summary').transpose().reset_index()
+summary_p = summary_p.set_index("summary").transpose().reset_index()
 # set_index('summary') — делаем колонку 'summary' индексом (count, mean, stddev...)
 # transpose() — транспонируем (теперь каждая колонка — метрика, каждая строка — поле)
 # reset_index() — сбрасываем индекс, чтобы получить обычные колонки
 
-summary_p = summary_p.rename(columns={'index': 'field'})
+summary_p = summary_p.rename(columns={"index": "field"})
 # Переименовываем колонку 'index' в 'field' (теперь там имена полей)
 
 summary_p = summary_p.rename_axis(None, axis=1)  # Убираем имя оси
@@ -210,48 +230,52 @@ temp_csv = os.path.join(cache_dir, "summary_temp.csv")
 summary_p.fillna("").to_csv(temp_csv, index=False)  # Сохраняем Pandas в CSV
 
 # Читаем через Spark — все колонки как строки (inferSchema=false)
-summaryT = spark.read \
-    .option("header", "true") \
-    .option("inferSchema", "false") \
-    .option("nullValue", "") \
+summaryT = (
+    spark.read.option("header", "true")
+    .option("inferSchema", "false")
+    .option("nullValue", "")
     .csv(temp_csv)
+)
 
-summaryT.cache()          # Кэшируем после загрузки
-summaryT.show()           # Проверка содержимого
-os.remove(temp_csv)       # Удаляем временный файл (данные в кэше)
+summaryT.cache()  # Кэшируем после загрузки
+summaryT.show()  # Проверка содержимого
+os.remove(temp_csv)  # Удаляем временный файл (данные в кэше)
 
 # Приводим типы колонок (кроме field) к DoubleType для числовых операций
 for c in summaryT.columns:
-    if c == 'field':
+    if c == "field":
         continue
     summaryT = summaryT.withColumn(c, summaryT[c].cast(DoubleType()))
+
 
 # Функция для повторяющейся операции: Pandas → транспонирование → Spark
 def pivot_summary(desc):
     """Транспонирует статистический DataFrame и возвращает Spark DataFrame"""
-    desc_p = desc.toPandas()          
-    desc_p = desc_p.set_index('summary').transpose().reset_index()
-    desc_p = desc_p.rename(columns={'index': 'field'})
+    desc_p = desc.toPandas()
+    desc_p = desc_p.set_index("summary").transpose().reset_index()
+    desc_p = desc_p.rename(columns={"index": "field"})
     desc_p = desc_p.rename_axis(None, axis=1)
-    
+
     temp_desc_csv = os.path.join(cache_dir, f"temp_desc_p_{uuid.uuid4().hex[:8]}.csv")
     desc_p.fillna("").to_csv(temp_desc_csv, index=False)
-    
-    descT = spark.read \
-        .option("header", "true") \
-        .option("inferSchema", "false") \
-        .option("nullValue", "") \
+
+    descT = (
+        spark.read.option("header", "true")
+        .option("inferSchema", "false")
+        .option("nullValue", "")
         .csv(temp_desc_csv)
-    
+    )
+
     for c in descT.columns:
-        if c == 'field':
+        if c == "field":
             continue
         descT = descT.withColumn(c, descT[c].cast(DoubleType()))
-    
+
     descT.cache()
     descT.count()  # Форсируем загрузку в память
     os.remove(temp_desc_csv)
     return descT
+
 
 # Применяем функцию для совпавших и несовпавших записей
 match_summaryT = pivot_summary(match_summary)
@@ -292,12 +316,17 @@ order by delta desc, total desc
 good_features = ["cmp_lname_c1", "cmp_plz", "cmp_by", "cmp_bd", "cmp_bm"]
 # Зачем: выбраны признаки с максимальной разницей средних (delta)
 
-sum_expression = " + ".join(good_features)  # Строка: "cmp_lname_c1 + cmp_plz + cmp_by + cmp_bd + cmp_bm"
+sum_expression = " + ".join(
+    good_features
+)  # Строка: "cmp_lname_c1 + cmp_plz + cmp_by + cmp_bd + cmp_bm"
 
-scored = parsed.fillna(0, subset=good_features).\
-    withColumn('score', expr(sum_expression)).\
-    select('score','is_match')                     
+scored = (
+    parsed.fillna(0, subset=good_features)
+    .withColumn("score", expr(sum_expression))
+    .select("score", "is_match")
+)
 scored.show()  # Показываем оценки для первых записей
+
 
 # ============================================
 # БЛОК 17: ОЦЕНКА КАЧЕСТВА (CROSS-TABULATION)
@@ -310,9 +339,13 @@ def crossTabs(scored, threshold):
     Строит cross-tabulation: для заданного порога определяет,
     сколько записей выше/ниже порога среди истинных/ложных совпадений.
     """
-    return scored.selectExpr(f"Score >= {threshold} as above", "is_match").\
-        groupBy("above").pivot("is_match", ("true", "false")).\
-        count()
+    return (
+        scored.selectExpr(f"Score >= {threshold} as above", "is_match")
+        .groupBy("above")
+        .pivot("is_match", ("true", "false"))
+        .count()
+    )
+
 
 # Пример для порога 4.0 (максимальная сумма для 5 признаков = 5.0)
 crossTabs(scored, 4.0).show()
